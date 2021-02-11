@@ -29,6 +29,7 @@ class GCPN_crem(nn.Module):
                  mlp_nb_hidden,
                  sample_crem,
                  eval,
+                 surr_model,
                  device):
         super(GCPN_crem, self).__init__()
 
@@ -41,11 +42,13 @@ class GCPN_crem(nn.Module):
                                    True)
         self.mc = Action_Prediction(mlp_nb_layers,
                                     mlp_nb_hidden,
-                                    2 * emb_dim)
+                                    2 * emb_dim,
+                                    concat_surr=True)
         self.emb_dim = emb_dim
         self.device = device
         self.sample_crem = sample_crem
         self.eval = eval
+        self.surr_model = surr_model
         if self.eval:
             self.sample_crem = None
 
@@ -54,7 +57,7 @@ class GCPN_crem(nn.Module):
         Need to return action, prob, and list of states."""
 
         # Adhoc rdkit fixes for mol representation
-        #mol.UpdatePropertyCache(strict=False)
+        # mol.UpdatePropertyCache(strict=False)
 
         # Chem.SanitizeMol(mol,
         #                  Chem.SanitizeFlags.SANITIZE_FINDRADICALS | Chem.SanitizeFlags.SANITIZE_KEKULIZE |\
@@ -65,7 +68,7 @@ class GCPN_crem(nn.Module):
         db_fname = 'replacements02_sc2.db'
 
         try:
-            new_mols = list(mutate_mol(mol, db_fname, max_replacements = self.sample_crem, return_mol=True, ncores=16))
+            new_mols = list(mutate_mol(mol, db_fname, max_replacements=self.sample_crem, return_mol=True, ncores=16))
             print("CReM options:" + str(len(new_mols)))
             new_mols = [Chem.RemoveHs(i[1]) for i in new_mols]
         except Exception as e:
@@ -73,22 +76,27 @@ class GCPN_crem(nn.Module):
             print("SMILE: " + Chem.MolToSmiles(mol))
             new_mols = []
         new_mols.append(mol)  # Also consider the molecule by itself, if chosen stop is implied.
+        print("New mols ", len(new_mols))
         new_pygs = Batch().from_data_list([mol_to_pyg_graph(i) for i in new_mols]).to(self.device)
-
+        # Getting Surrogate Rewards
         with torch.autograd.no_grad():
+            pred_docking_score = self.surr_model(new_pygs, None)
+            rewards = pred_docking_score * -1
+
             # Policy
             if len(new_mols) == 1:
+                rewards = torch.unsqueeze(rewards, 0)
                 action, prob = -1, torch.tensor(1.0)
             else:
                 X = self.gnn_embed(new_pygs)
                 X_last = X[-1].repeat(len(X), 1)
                 X_cat = torch.cat((X, X_last), dim=1)
-                f_probs = self.mc(X_cat)  # Mask is not needed since each row is a molecule.
+                f_probs = self.mc(X_cat, surr=rewards)  # Mask is not needed since each row is a molecule.
                 action, prob = sample_from_probs(f_probs, eval_action)
 
             if action == (len(new_mols) - 1):
                 action = -1  # Token for stop.
-        return action, prob, new_mols
+        return action, prob, new_mols, rewards
 
     def get_crem_opt(self, X, eval_actions):
         f_probs = self.mc(X)
@@ -96,7 +104,7 @@ class GCPN_crem(nn.Module):
         return probs
 
     # TODO (Andrew): Need to change how things are evaluated
-    def evaluate(self, orig_states, actions):
+    def evaluate(self, orig_states, actions, batch_rewards):
         # batches = [torch.tensor(step.batch) for step in orig_states]
         n_steps = len(orig_states)
         p_agg = torch.empty(n_steps).to(self.device)
@@ -105,19 +113,19 @@ class GCPN_crem(nn.Module):
             X = self.gnn_embed(batch)  # (sample_n_crem, 128)
 
             if X.ndim == 1:
-                #When there's only one molecule, need to unsqueeze, and do manual concatenation, so indexing works.
+                # When there's only one molecule, need to unsqueeze, and do manual concatenation, so indexing works.
                 X_cat = torch.unsqueeze(X.repeat(2), 0)
             else:
                 X_last = X[-1].repeat(len(X), 1)
-                X_cat = torch.cat((X, X_last), dim=1) # (sample_n_crem, 256)
-
-            p_all = self.mc(X_cat)
+                X_cat = torch.cat((X, X_last), dim=1)  # (sample_n_crem, 256)
+            print("Len Batch Rewards: ", len(batch_rewards))
+            p_all = self.mc(X_cat, surr=batch_rewards[i])
             if p_all.ndim == 0:
-                #When there's only one molecule, need to unsqueeze so indexing works
+                # When there's only one molecule, need to unsqueeze so indexing works
                 p_all = torch.unsqueeze(p_all, 0)
             p_crem = p_all[actions[i].item()]
             p_agg[i] = p_crem
-            X_agg[i] = X[-1] #Pooled representation of starting state is the input to the critic-value function
+            X_agg[i] = X[-1]  # Pooled representation of starting state is the input to the critic-value function
         return p_agg, X_agg
 
 
@@ -324,23 +332,34 @@ class Action_Prediction(nn.Module):
                  nb_hidden,
                  input_dim,
                  nb_edge_types=1,
-                 apply_softmax=True):
+                 apply_softmax=True,
+                 concat_surr=False):
         super(Action_Prediction, self).__init__()
 
         layers = [nn.Linear(input_dim, nb_hidden)]
-        for _ in range(nb_layers - 1):
-            layers.append(nn.Linear(nb_hidden, nb_hidden))
-
+        for i in range(nb_layers - 1):
+            if (i == nb_layers - 2) and concat_surr:
+                layers.append(nn.Linear(nb_hidden + 1, nb_hidden))
+            else:
+                layers.append(nn.Linear(nb_hidden, nb_hidden))
+        self.nb_layers = nb_layers
         self.layers = nn.ModuleList(layers)
+        self.concat_surr = concat_surr
+        self.bn = nn.BatchNorm1d(num_features=nb_hidden)
         self.final_layer = nn.Linear(nb_hidden, nb_edge_types)
         self.act = nn.ReLU()
         self.apply_softmax = apply_softmax
         if apply_softmax:
             self.softmax = nn.Softmax(dim=0)
 
-    def forward(self, X, batch=None):
-        for l in self.layers:
-            X = self.act(l(X))
+    def forward(self, X, batch=None, surr=None):
+        for i, l in enumerate(self.layers):
+            # If in penultimate layer, concatenate surrogate scores
+            if (i == self.nb_layers - 1) and self.concat_surr:
+                X = self.act(self.bn(l(torch.cat((X, torch.unsqueeze(surr, 1)), dim=1))))
+            else:
+                X = self.act(l(X))
+
         logits = self.final_layer(X)
 
         if self.apply_softmax:
