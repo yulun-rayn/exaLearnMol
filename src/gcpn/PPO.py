@@ -300,7 +300,6 @@ def get_final_reward(state, env, surrogate_model, device):
 #####################################################
 
 def train_ppo(args, surrogate_model, env, writer=None):
-    print("INFO: Not training with entropy term in loss")
     print("{} episodes before surrogate model as final reward".format(
                 args.surrogate_reward_timestep_delay))
 
@@ -412,6 +411,8 @@ def train_ppo(args, surrogate_model, env, writer=None):
             torch.save(ppo.policy.state_dict(), './PPO_continuous_solved_{}.pth'.format('test'))
             break
         
+        # save running
+        torch.save(ppo.policy.state_dict(), './PPO_continuous_current_{}.pth'.format('test'))
         # save every 500 episodes
         if i_episode % 500 == 0:
             torch.save(ppo.policy.state_dict(), './PPO_continuous_{}.pth'.format('test'))

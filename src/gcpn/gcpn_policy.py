@@ -287,6 +287,8 @@ class MyGCNConv(MessagePassing):
         super(MyGCNConv, self).__init__(aggr='add')  # "Add" aggregation.
         self.lin = torch.nn.Linear(2*in_channels, out_channels)
         self.act = nn.ReLU()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.use_attention = use_attention
         self.stochastic_kernel = stochastic_kernel
         self.projections = None
@@ -312,10 +314,10 @@ class MyGCNConv(MessagePassing):
             x = self.norm(x)
 
         if self.stochastic_kernel and (self.projections is None):
-            self.P = Normal(torch.zeros(self.out_channels).to(self.sigma.device),
-                            self.sigma * torch.ones(self.out_channels).to(self.sigma.device))
-            self.B = Uniform(torch.zeros(self.out_channels).to(self.sigma.device),
-                             2 * np.pi * torch.ones(self.out_channels).to(self.sigma.device))
+            self.P = Normal(torch.zeros(self.in_channels).to(self.sigma.device),
+                            self.sigma * torch.ones(self.in_channels).to(self.sigma.device))
+            self.B = Uniform(torch.zeros(self.in_channels).to(self.sigma.device),
+                             2 * np.pi * torch.ones(self.in_channels).to(self.sigma.device))
             self.projections = self.P.rsample((self.in_channels,))
             self.offsets = self.B.sample()
 

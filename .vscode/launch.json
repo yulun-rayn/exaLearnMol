@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "main_gcpn",
+            "type": "python",
+            "request": "launch",
+            "program": "src/main_gcpn.py",
+            "args": [
+                "--name", "Ep0_rewFacNone_stochastic_kernel",
+                "--data_path", "src/dataset",
+                "--artifact_path", "aritfact",
+                "--gpu", "0",
+                "--surrogate_model_path", "artifact/surrogate_model.pth",
+                "--surrogate_reward_timestep_delay", "10",
+                "--prob_redux_factor", "0.99",
+                "--stochastic_kernel",
+                "--layer_num_g", "4"
+            ],
+            "console": "integratedTerminal"
+        }
+    ]
+}
