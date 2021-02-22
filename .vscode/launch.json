@@ -12,9 +12,9 @@
             "args": [
                 "--name", "Ep0_rewFacNone_stochastic_kernel",
                 "--data_path", "src/dataset",
-                "--artifact_path", "aritfact",
+                "--artifact_path", "artifact",
                 "--gpu", "0",
-                "--surrogate_model_path", "artifact/surrogate_model.pth",
+                "--surrogate_model_url", "https://portal.nersc.gov/project/m3623/docking_score_models/NSP15_6W01_A_1_F_uncharged_upsamp/predict_logp/best_model.pth",
                 "--surrogate_reward_timestep_delay", "10",
                 "--prob_redux_factor", "0.99",
                 "--stochastic_kernel",
