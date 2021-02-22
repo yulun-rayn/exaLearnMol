@@ -224,14 +224,6 @@ class GNN_Embed(nn.Module):
         emb = self.final_emb(emb)
         return emb
 
-    def reset_projections(self):
-        if self.layers[-1].stochastic_kernel:
-            self.layers[-1].reset_projections()
-
-    def detach_projections(self):
-        if self.layers[-1].stochastic_kernel:
-            self.layers[-1].detach_projections()
-
 
 class Action_Prediction(nn.Module):
     def __init__(self, 
@@ -314,12 +306,12 @@ class MyGCNConv(MessagePassing):
             x = self.norm(x)
 
         if self.stochastic_kernel and (self.projections is None):
-            self.P = Normal(torch.zeros(self.in_channels).to(self.sigma.device),
+            P = Normal(torch.zeros(self.in_channels).to(self.sigma.device),
                             self.sigma * torch.ones(self.in_channels).to(self.sigma.device))
-            self.B = Uniform(torch.zeros(self.in_channels).to(self.sigma.device),
+            B = Uniform(torch.zeros(self.in_channels).to(self.sigma.device),
                              2 * np.pi * torch.ones(self.in_channels).to(self.sigma.device))
-            self.projections = self.P.rsample((self.in_channels,))
-            self.offsets = self.B.sample()
+            self.projections = P.sample((self.in_channels,))
+            self.offsets = B.sample()
 
         if size is None and torch.is_tensor(x):
             edge_index, edge_attr = remove_self_loops(edge_index, edge_attr=edge_attr)
@@ -348,15 +340,6 @@ class MyGCNConv(MessagePassing):
 
     def update(self, aggr_out):
         return aggr_out
-
-    def reset_projections(self):
-        self.P = Normal(torch.zeros(self.out_channels).to(self.sigma.device),
-                        self.sigma * torch.ones(self.out_channels).to(self.sigma.device))
-        self.projections = self.P.rsample((self.projections.size(0),))
-        self.offsets = self.B.sample()
-
-    def detach_projections(self):
-        self.projections = self.projections.detach()
 
 
 

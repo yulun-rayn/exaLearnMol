@@ -238,13 +238,6 @@ class PPO_GCPN:
             if (i%10)==0:
                 print("  {:3d}: Loss: {:7.3f}".format(i, loss))
 
-            # Detach projections after first iteration
-            if i == 0 and self.stochastic_kernel:
-                self.policy.actor.gnn_embed.detach_projections()
-
-        # Reset projections for graph kernel
-        if self.stochastic_kernel:
-            self.policy.actor.gnn_embed.reset_projections()
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
