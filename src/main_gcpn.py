@@ -22,6 +22,8 @@ def molecule_arg_parser():
     add_arg('--artifact_path', required=True)
     add_arg('--name', default='default_run')
     add_arg('--seed', help='RNG seed', type=int, default=666)
+    add_arg('--cpu', action='store_true')
+    add_arg('--gpu', default='0')
 
     add_arg('--surrogate_model_url', default='')
     add_arg('--surrogate_model_path', default='')
@@ -49,6 +51,7 @@ def molecule_arg_parser():
     add_arg('--mlp_num_layer', type=int, default=3)
     add_arg('--mlp_num_hidden', type=int, default=128)
     add_arg('--prob_redux_factor', type=float, default=1.0)
+    add_arg('--stochastic_kernel', action='store_true')
 
     # LOSS PARAMETERS
     add_arg('--eta', type=float, default=0.01, help='relative weight for entropy loss')

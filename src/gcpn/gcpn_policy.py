@@ -3,8 +3,10 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.distributions.bernoulli import Bernoulli
-from torch.distributions.categorical import Categorical
+from torch.nn import Parameter
+from torch.nn import functional as F
+from torch.distributions import Bernoulli, Categorical, Uniform, Normal
+torch.pi = torch.acos(torch.zeros(1)).item() * 2
 
 import torch_geometric as pyg
 from torch_geometric.nn import MessagePassing
@@ -21,15 +23,16 @@ class GCPN(nn.Module):
                  gnn_nb_hidden_kernel,
                  mlp_nb_layers,
                  mlp_nb_hidden,
-                 prob_redux_factor = 1.0):
+                 prob_redux_factor,
+                 stochastic_kernel):
         super(GCPN, self).__init__()
 
         self.gnn_embed = GNN_Embed(gnn_nb_hidden,
                                    gnn_nb_layers,
                                    gnn_nb_hidden_kernel,
-                                   1,
                                    input_dim,
-                                   emb_dim)
+                                   emb_dim,
+                                   stochastic_kernel)
 
         self.mf = Action_Prediction(mlp_nb_layers,
                                     mlp_nb_hidden,
@@ -179,37 +182,55 @@ def get_batch_idx(batch, actions):
     
 
 class GNN_Embed(nn.Module):
-  def __init__(self,
+    def __init__(self,
                nb_hidden_gnn,
                nb_layer,
                nb_hidden_kernel,
-               nb_kernel,
                input_dim,
-               emb_dim):
-    super(GNN_Embed, self).__init__()
+               emb_dim,
+               stochastic_kernel):
+        super(GNN_Embed, self).__init__()
 
 
-    gnn_layers = [MyGCNConv(input_dim,
+        gnn_layers = [MyGCNConv(input_dim,
                             nb_hidden_gnn,
                             nb_hidden_kernel)]
-    for _ in range(nb_layer-1):
-        gnn_layers.append(MyGCNConv(nb_hidden_gnn,
+        for _ in range(nb_layer-2):
+            gnn_layers.append(MyGCNConv(nb_hidden_gnn,
                                     nb_hidden_gnn,
                                     nb_hidden_kernel,
                                     apply_norm=True))
+        if stochastic_kernel:
+            gnn_layers.append(MyGCNConv(nb_hidden_gnn,
+                                    nb_hidden_gnn,
+                                    apply_norm=True,
+                                    use_attention=False,
+                                    stochastic_kernel=True))
+        else:
+            gnn_layers.append(MyGCNConv(nb_hidden_gnn,
+                                    nb_hidden_gnn,
+                                    apply_norm=True))
 
-    self.layers = nn.ModuleList(gnn_layers)
-    self.final_emb = nn.Linear(nb_hidden_gnn, emb_dim)
+        self.layers = nn.ModuleList(gnn_layers)
+        self.final_emb = nn.Linear(nb_hidden_gnn, emb_dim)
 
-  def forward(self, data):
+    def forward(self, data):
 
-    emb = data.x
-    # GNN Layers
-    for i, layer in enumerate(self.layers):
-      emb = layer(emb, data.edge_index, data.edge_attr)
+        emb = data.x
+        # GNN Layers
+        for i, layer in enumerate(self.layers):
+            emb = layer(emb, data.edge_index, data.edge_attr)
 
-    emb = self.final_emb(emb)
-    return emb
+        emb = self.final_emb(emb)
+        return emb
+
+    def reset_projections(self):
+        if self.layers[-1].stochastic_kernel:
+            self.layers[-1].reset_projections()
+
+    def detach_projections(self):
+        if self.layers[-1].stochastic_kernel:
+            self.layers[-1].detach_projections()
 
 
 class Action_Prediction(nn.Module):
@@ -261,10 +282,14 @@ def batched_softmax(logits, batch):
 #####################################################
 
 class MyGCNConv(MessagePassing):
-    def __init__(self, in_channels, out_channels, nb_hidden_kernel=0, nb_edge_attr=1, apply_norm=False):
+    def __init__(self, in_channels, out_channels, nb_hidden_kernel=0, nb_edge_attr=1,
+                 apply_norm=False, use_attention=True, stochastic_kernel=False):
         super(MyGCNConv, self).__init__(aggr='add')  # "Add" aggregation.
         self.lin = torch.nn.Linear(2*in_channels, out_channels)
         self.act = nn.ReLU()
+        self.use_attention = use_attention
+        self.stochastic_kernel = stochastic_kernel
+        self.projections = None
 
         if nb_hidden_kernel>0:
             self.linA = torch.nn.Linear(in_channels*2+nb_edge_attr, nb_hidden_kernel)
@@ -276,12 +301,23 @@ class MyGCNConv(MessagePassing):
             # self.norm = MyInstanceNorm(in_channels, track_running_stats=False)
             self.norm = MyBatchNorm(in_channels)
 
+        if self.stochastic_kernel:
+            self.sigma = Parameter(Uniform(1, 2).sample())
+
     def forward(self, x, edge_index, edge_attr, size=None):
         # x has shape [N, in_channels]
         # edge_index has shape [2, E]
 
         if self.apply_norm:
             x = self.norm(x)
+
+        if self.stochastic_kernel and (self.projections is None):
+            self.P = Normal(torch.zeros(self.out_channels).to(self.sigma.device),
+                            self.sigma * torch.ones(self.out_channels).to(self.sigma.device))
+            self.B = Uniform(torch.zeros(self.out_channels).to(self.sigma.device),
+                             2 * np.pi * torch.ones(self.out_channels).to(self.sigma.device))
+            self.projections = self.P.rsample((self.in_channels,))
+            self.offsets = self.B.sample()
 
         if size is None and torch.is_tensor(x):
             edge_index, edge_attr = remove_self_loops(edge_index, edge_attr=edge_attr)
@@ -296,14 +332,29 @@ class MyGCNConv(MessagePassing):
 
     def message(self, x_i, x_j, edge_attr):
         edge_attr = edge_attr.unsqueeze(1)
-        E = torch.cat([x_i, x_j, edge_attr], dim=1)
-        h = self.act(self.linA(E))
-        w = self.sigmoid(self.linB(h))
+        out = x_j
+        if self.use_attention:
+            E = torch.cat([x_i, out, edge_attr], dim=1)
+            h = self.act(self.linA(E))
+            w = self.sigmoid(self.linB(h))
+            out = w * out
+        if self.stochastic_kernel:
+            out = torch.cos(
+                torch.matmul(out, self.projections.T) + self.offsets)  # * self.projections.size(0) ** (-0.5)
 
-        return w * x_j
+        return out
 
     def update(self, aggr_out):
         return aggr_out
+
+    def reset_projections(self):
+        self.P = Normal(torch.zeros(self.out_channels).to(self.sigma.device),
+                        self.sigma * torch.ones(self.out_channels).to(self.sigma.device))
+        self.projections = self.P.rsample((self.projections.size(0),))
+        self.offsets = self.B.sample()
+
+    def detach_projections(self):
+        self.projections = self.projections.detach()
 
 
 

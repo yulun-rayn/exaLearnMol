@@ -62,7 +62,8 @@ class ActorCriticGCPN(nn.Module):
                  gnn_nb_hidden_kernel,
                  mlp_nb_layers,
                  mlp_nb_hidden,
-                 prob_redux_factor):
+                 prob_redux_factor,
+                 stochastic_kernel):
         super(ActorCriticGCPN, self).__init__()
 
         # action mean range -1 to 1
@@ -74,7 +75,8 @@ class ActorCriticGCPN(nn.Module):
                            gnn_nb_hidden_kernel,
                            mlp_nb_layers,
                            mlp_nb_hidden,
-                           prob_redux_factor)
+                           prob_redux_factor,
+                          stochastic_kernel)
         # critic
         self.critic = GCPN_Critic(emb_dim, mlp_nb_layers, mlp_nb_hidden)
         
@@ -132,7 +134,9 @@ class PPO_GCPN:
                  gnn_nb_hidden_kernel,
                  mlp_nb_layers,
                  mlp_nb_hidden,
-                 prob_redux_factor):
+                 prob_redux_factor,
+                 stochastic_kernel,
+                 device):
         self.lr = lr
         self.betas = betas
         self.gamma = gamma
@@ -140,6 +144,8 @@ class PPO_GCPN:
         self.upsilon = upsilon
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
+        self.stochastic_kernel = stochastic_kernel
+        self.device = device
         
         self.policy = ActorCriticGCPN(input_dim,
                                       emb_dim,
@@ -149,7 +155,8 @@ class PPO_GCPN:
                                       gnn_nb_hidden_kernel,
                                       mlp_nb_layers,
                                       mlp_nb_hidden,
-                                      prob_redux_factor).to(device)
+                                      prob_redux_factor,
+                                      stochastic_kernel).to(self.device)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
         
         self.policy_old = ActorCriticGCPN(input_dim,
@@ -160,15 +167,16 @@ class PPO_GCPN:
                                           gnn_nb_hidden_kernel,
                                           mlp_nb_layers,
                                           mlp_nb_hidden,
-                                          prob_redux_factor).to(device)
+                                          prob_redux_factor,
+                                          stochastic_kernel).to(self.device)
         self.policy_old.load_state_dict(self.policy.state_dict())
         
         self.MseLoss = nn.MSELoss()
 
     
     def select_action(self, state, memory, env):
-        g = state_to_surrogate_graph(state, env).to(device)
-        # state = wrap_state(state).to(device)
+        g = state_to_surrogate_graph(state, env).to(self.device)
+        # state = wrap_state(state).to(self.device)
         action = self.policy_old.act(g, memory)
         return action
     
@@ -183,13 +191,13 @@ class PPO_GCPN:
             rewards.insert(0, discounted_reward)
         
         # Normalizing the rewards:
-        rewards = torch.tensor(rewards).to(device)
+        rewards = torch.tensor(rewards).to(self.device)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
         
         # convert list to tensor
-        old_states = Batch().from_data_list(memory.states).to(device)
-        old_actions = torch.squeeze(torch.tensor(memory.actions).to(device), 1).detach()
-        old_logprobs = torch.squeeze(torch.stack(memory.logprobs), 1).to(device).detach()
+        old_states = Batch().from_data_list(memory.states).to(self.device)
+        old_actions = torch.squeeze(torch.tensor(memory.actions).to(self.device), 1).detach()
+        old_logprobs = torch.squeeze(torch.stack(memory.logprobs), 1).to(self.device).detach()
         
         # Optimize policy for K epochs:
         print("Optimizing...")
@@ -230,6 +238,13 @@ class PPO_GCPN:
             if (i%10)==0:
                 print("  {:3d}: Loss: {:7.3f}".format(i, loss))
 
+            # Detach projections after first iteration
+            if i == 0 and self.stochastic_kernel:
+                self.policy.actor.gnn_embed.detach_projections()
+
+        # Reset projections for graph kernel
+        if self.stochastic_kernel:
+            self.policy.actor.gnn_embed.reset_projections()
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
@@ -270,7 +285,7 @@ def state_to_surrogate_graph(state, env, keep_self_edges=True):
     return g
     
 
-def get_final_reward(state, env, surrogate_model):
+def get_final_reward(state, env, surrogate_model, device):
     g = state_to_surrogate_graph(state, env, keep_self_edges=False)
     g = g.to(device)
     with torch.autograd.no_grad():
@@ -310,6 +325,8 @@ def train_ppo(args, surrogate_model, env, writer=None):
     nb_edge_types = ob['adj'].shape[0]
     ob = state_to_surrogate_graph(ob, env)
     input_dim = ob.x.shape[1]
+    device = torch.device("cpu") if args.cpu else torch.device(
+        'cuda:' + str(args.gpu) if torch.cuda.is_available() else "cpu")
     
     ppo = PPO_GCPN(lr,
                    betas,
@@ -326,7 +343,9 @@ def train_ppo(args, surrogate_model, env, writer=None):
                    args.num_hidden_g,
                    args.mlp_num_layer,
                    args.mlp_num_hidden,
-                   args.prob_redux_factor)
+                   args.prob_redux_factor,
+                   args.stochastic_kernel,
+                   device)
     
     print(ppo)
     memory = Memory()
@@ -356,7 +375,7 @@ def train_ppo(args, surrogate_model, env, writer=None):
             state, reward, done, _ = env.step(action)
 
             if done and (i_episode > args.surrogate_reward_timestep_delay):
-                surr_reward = get_final_reward(state, env, surrogate_model)
+                surr_reward = get_final_reward(state, env, surrogate_model, device)
                 reward += surr_reward / 5
 
             
