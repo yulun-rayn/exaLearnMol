@@ -76,7 +76,6 @@ class GCPN_crem(nn.Module):
             print("SMILE: " + Chem.MolToSmiles(mol))
             new_mols = []
         new_mols.append(mol)  # Also consider the molecule by itself, if chosen stop is implied.
-        print("New mols ", len(new_mols))
         new_pygs = Batch().from_data_list([mol_to_pyg_graph(i) for i in new_mols]).to(self.device)
         # Getting Surrogate Rewards
         with torch.autograd.no_grad():
@@ -118,7 +117,6 @@ class GCPN_crem(nn.Module):
             else:
                 X_last = X[-1].repeat(len(X), 1)
                 X_cat = torch.cat((X, X_last), dim=1)  # (sample_n_crem, 256)
-            print("Len Batch Rewards: ", len(batch_rewards))
             p_all = self.mc(X_cat, surr=batch_rewards[i])
             if p_all.ndim == 0:
                 # When there's only one molecule, need to unsqueeze so indexing works
@@ -356,7 +354,10 @@ class Action_Prediction(nn.Module):
         for i, l in enumerate(self.layers):
             # If in penultimate layer, concatenate surrogate scores
             if (i == self.nb_layers - 1) and self.concat_surr:
-                X = self.act(self.bn(l(torch.cat((X, torch.unsqueeze(surr, 1)), dim=1))))
+                if X.shape[0] == 1:
+                    X = self.act(l(torch.cat((X, torch.unsqueeze(surr, 1)), dim=1)))
+                else:
+                    X = self.act(self.bn(l(torch.cat((X, torch.unsqueeze(surr, 1)), dim=1))))
             else:
                 X = self.act(l(X))
 
