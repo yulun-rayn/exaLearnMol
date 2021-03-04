@@ -8,6 +8,6 @@ PYARGS="$PYARGS --data_path $DATA/exaLearnMol"
 # PYARGS="$PYARGS --data_path $DATA/exaLearnMol/NSP15_6W01_A_1_F.Orderable_zinc_db_enaHLL.sorted.4col.csv"
 PYARGS="$PYARGS --artifact_path $ARTIFACTS/exaLearnMol/gcpn"
 PYARGS="$PYARGS --surrogate_model_path $ARTIFACTS/exaLearnMol/test_2/predict_logp/best_model.pth"
-PYARGS="$PYARGS --gcpn_path $ARTIFACTS/exaLearnMol/scores_only/00101_gcpn.pth"
+PYARGS="$PYARGS --gcpn_path $ARTIFACTS/exaLearnMol/scores_only_fixed2/00001_gcpn.pth"
 
 python src/main_evaluate.py $PYARGS
