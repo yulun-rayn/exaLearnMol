@@ -48,7 +48,7 @@ class GCPN_CReM(nn.Module):
                  nb_hidden):
         super(GCPN_CReM, self).__init__()
 
-        layers = [nn.Linear(2*emb_dim, nb_hidden)]
+        layers = [nn.Linear(2, nb_hidden)]
         for _ in range(nb_layers-1):
             layers.append(nn.Linear(nb_hidden, nb_hidden))
 
@@ -76,7 +76,8 @@ class GCPN_CReM(nn.Module):
 
     def get_embedding(self, g, surrogate_model):
         with torch.autograd.no_grad():
-            emb = surrogate_model.get_embedding(g)
+            emb = surrogate_model(g) / 10
+            emb = emb.reshape(-1,1)
         return emb
 
     def evaluate(self, candidates, actions):

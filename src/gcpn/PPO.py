@@ -291,7 +291,7 @@ def train_ppo(args, surrogate_model, env, writer=None):
     input_dim = ob.x.shape[1]
 
     # emb_dim = surrogate_model.emb_dim
-    emb_dim = 512 # temp fix to use an old surrogate model
+    emb_dim = 1 # temp fix to use an old surrogate model
     nb_edge_types = 1
 
     device = torch.device("cpu") if args.use_cpu else torch.device(
@@ -385,7 +385,7 @@ def train_ppo(args, surrogate_model, env, writer=None):
         # save every 500 episodes
         if (i_episode-1) % save_interval == 0:
             model_name = '{:05d}_gcpn.pth'.format(i_episode)
-            torch.save(ppo.policy, args.artifact_path+'/'+model_name)
+            torch.save(ppo.policy.actor, args.artifact_path+'/'+model_name)
 
         # logging
         if i_episode % log_interval == 0:
