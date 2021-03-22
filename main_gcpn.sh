@@ -6,9 +6,9 @@ conda activate gcpn3
 DATA=$(cd -P -- "$(dirname -- "$0")" && pwd -P)
 
 PYARGS=""
-PYARGS="$PYARGS --name NSP15_6W01_A1F_crem_full_conditional"
+PYARGS="$PYARGS --name NSP15_6W01_A1F_crem_dock_only"
 PYARGS="$PYARGS --data_path $DATA"
-PYARGS="$PYARGS --artifact_path $DATA/gcpn"
+PYARGS="$PYARGS --artifact_path /clusterfs/csdata/data/gcpn"
 PYARGS="$PYARGS --use_surrogate"
 PYARGS="$PYARGS --use_crem"
 PYARGS="$PYARGS --gpu 3"

@@ -12,6 +12,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from torch_geometric.data import Data, Batch
 
+from tdc import Oracle
+
 from rdkit import Chem
 from rdkit import DataStructs
 from rdkit.Chem.Fingerprints import FingerprintMols
@@ -276,6 +278,10 @@ def get_final_reward(state, env, surrogate_model, device):
     reward = pred_docking_score.item() * -1
     return reward
 
+def get_dock_reward(state, oracle):
+    smile = Chem.MolToSmiles(state, isomericSmiles=True)
+    result_dict = oracle(smile)
+    return result_dict[smile] * -1
 
 #####################################################
 #                   TRAINING LOOP                   #
@@ -351,14 +357,14 @@ def train_ppo(args, env):
                 shutil.copyfileobj(f_in, f_out)
 
     if args.use_surrogate:
-        print("{} episodes before surrogate model as final reward".format(
-            args.surrogate_reward_timestep_delay))
-        surrogate_model = load_surrogate_model(args.artifact_path,
-                                               args.surrogate_model_url,
-                                               args.surrogate_model_path,
-                                               device)
-        print(surrogate_model)
-        surrogate_model = surrogate_model.to(device)
+        print("{} episodes before surrogate model as final reward".format(args.surrogate_reward_timestep_delay))
+        oracle=Oracle(name='Docking_Score', software='vina', pyscreener_path='/global/home/users/adchen/pyscreener', receptors=['/global/home/users/adchen/NSP15_6W01_A_1_F.receptor.pdb'], docked_ligand_file='/global/home/users/adchen/NSP15_6W01_A_1_F.oeb.docked_poses.pdb', buffer=10, path='./my_test/', num_worker=1, ncpu=4)
+        #surrogate_model = load_surrogate_model(args.artifact_path,
+        #                                       args.surrogate_model_url,
+        #                                       args.surrogate_model_path,
+        #                                       device)
+        #print(surrogate_model)
+        #surrogate_model = surrogate_model.to(device)
 
     # logging variables
     best_running_reward = 0
@@ -391,9 +397,9 @@ def train_ppo(args, env):
                 if done:
                     if args.use_surrogate and (i_episode > args.surrogate_reward_timestep_delay):
                         try:
-                            surr_reward = get_final_reward(state, env, surrogate_model, device)
-                            reward = surr_reward
-                            info['surrogate_reward'] = surr_reward
+                            #surr_reward = get_final_reward(state, env, surrogate_model, device)
+                            reward = get_dock_reward(state, oracle)
+                            info['surrogate_reward'] = reward
                         except Exception as e:
                             print("Error in surrogate " + str(e))
                             info['surrogate_reward'] = None
@@ -445,7 +451,7 @@ def train_ppo(args, env):
                     break
 
 
-            writer.add_scalar("EpSurrogate", -1 * surr_reward, episode_count)
+            writer.add_scalar("EpSurrogate", -1 * reward, episode_count)
             rewbuffer_env.append(cur_ep_ret_env)
             avg_length += t
 
