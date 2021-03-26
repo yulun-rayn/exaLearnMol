@@ -9,6 +9,8 @@ from torch.distributions import MultivariateNormal
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import dense_to_sparse
 
+from rdkit.Chem.Descriptors import MolLogP
+
 from .gcpn_policy import GCPN_CReM
 
 from utils.graph_utils import state_to_pyg
@@ -246,13 +248,9 @@ class PPO_GCPN(nn.Module):
 #                   FINAL REWARDS                   #
 #####################################################
 
-def get_reward(state, surrogate_model, device):
-    g = Batch().from_data_list([state])
-    g = g.to(device)
-    with torch.autograd.no_grad():
-        pred_docking_score = surrogate_model(g, None)
-    reward = pred_docking_score.item() * -1
-    return reward
+def get_score(mol):
+    score = MolLogP(mol)
+    return score
 
 
 
@@ -287,7 +285,7 @@ def train_ppo(args, surrogate_model, env, writer=None):
     
     #############################################
 
-    ob, _, _ = env.reset()
+    ob, _, _, _ = env.reset()
     input_dim = ob.x.shape[1]
 
     # emb_dim = surrogate_model.emb_dim
@@ -334,21 +332,21 @@ def train_ppo(args, surrogate_model, env, writer=None):
     # training loop
     for i_episode in range(1, max_episodes+1):
         cur_ep_ret_env = 0
-        state, candidates, done = env.reset()
-        starting_reward = get_reward(state, surrogate_model, device)
+        state, candidates, done, mol = env.reset()
+        starting_score = get_score(mol)
 
         for t in range(max_timesteps):
             time_step += 1
             # Running policy_old:
             action = ppo.select_action(state, candidates, memory, surrogate_model)
-            state, candidates, done = env.step(action)
+            state, candidates, done, mol = env.step(action)
 
             # done and reward may not be needed anymore
             reward = 0
 
             if (t==(max_timesteps-1)) or done:
-                surr_reward = get_reward(state, surrogate_model, device)
-                reward = surr_reward-starting_reward
+                final_score = get_score(mol)
+                reward = final_score-starting_score
             
             
             # Saving reward and is_terminals:
@@ -366,7 +364,7 @@ def train_ppo(args, surrogate_model, env, writer=None):
             ppo.update(memory, i_episode, writer)
             memory.clear_memory()
 
-        writer.add_scalar("EpSurrogate", -1*surr_reward, episode_count)
+        writer.add_scalar("EpLogP", final_score, episode_count)
         rewbuffer_env.append(reward)
         avg_length += t
 

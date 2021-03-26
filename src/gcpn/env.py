@@ -45,7 +45,7 @@ class CReM_Env(object):
         g = mol_to_pyg_graph(mol)[0]
         g_candidates, done = self.get_crem_candidates(mol, include_current_state)
 
-        return g, g_candidates, done
+        return g, g_candidates, done, mol
 
     def get_crem_candidates(self, mol, include_current_state):
 
