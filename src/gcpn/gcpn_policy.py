@@ -1,6 +1,8 @@
 import time
 import numpy as np
 
+from random import uniform
+
 import torch
 import torch.nn as nn
 from torch.distributions.bernoulli import Bernoulli
@@ -14,6 +16,11 @@ from torch_geometric.utils import remove_self_loops, add_self_loops, softmax, de
 #####################################################
 #                   HELPER MODULES                  #
 #####################################################
+
+def choose_max_action(probs):
+    a = torch.argmax(probs)
+    return a.item(), probs[a]
+
 def sample_from_probs(p, action=None):
     m = Categorical(p)
     a = m.sample() if action is None else action
@@ -45,7 +52,8 @@ class GCPN_CReM(nn.Module):
                  input_dim,
                  emb_dim,
                  nb_layers,
-                 nb_hidden):
+                 nb_hidden,
+                 explore_pct = 1.00):
         super(GCPN_CReM, self).__init__()
 
         layers = [nn.Linear(2*emb_dim, nb_hidden)]
@@ -56,6 +64,8 @@ class GCPN_CReM(nn.Module):
         self.final_layer = nn.Linear(nb_hidden, 1)
         self.act = nn.ReLU()
         self.softmax = nn.Softmax(0)
+
+        self.explore_pct = explore_pct
 
     def forward(self, g, g_candidates, surrogate_model):
         g_emb = self.get_embedding(g, surrogate_model)
@@ -72,7 +82,10 @@ class GCPN_CReM(nn.Module):
         probs = self.softmax(X)
 
         if self.training:
-            a, p = sample_from_probs(probs)
+            if uniform(0,1) > self.explore_pct:
+                a, p = choose_max_action(probs)
+            else:
+                a, p = sample_from_probs(probs)
             return g_emb, X_states, a, p
         else:
             return g_emb, X_states, probs
