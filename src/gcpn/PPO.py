@@ -281,7 +281,8 @@ def get_final_reward(state, env, surrogate_model, device):
 def get_dock_reward(state, oracle):
     smile = Chem.MolToSmiles(state, isomericSmiles=True)
     result_dict = oracle(smile)
-    return result_dict[smile] * -1
+    reward = result_dict * -1
+    return reward
 
 #####################################################
 #                   TRAINING LOOP                   #
@@ -358,13 +359,19 @@ def train_ppo(args, env):
 
     if args.use_surrogate:
         print("{} episodes before surrogate model as final reward".format(args.surrogate_reward_timestep_delay))
-        oracle=Oracle(name='Docking_Score', software='vina', pyscreener_path='/global/home/users/adchen/pyscreener', receptors=['/global/home/users/adchen/NSP15_6W01_A_1_F.receptor.pdb'], docked_ligand_file='/global/home/users/adchen/NSP15_6W01_A_1_F.oeb.docked_poses.pdb', buffer=10, path='./my_test/', num_worker=1, ncpu=4)
-        #surrogate_model = load_surrogate_model(args.artifact_path,
-        #                                       args.surrogate_model_url,
-        #                                       args.surrogate_model_path,
-        #                                       device)
+        oracle=Oracle(name='Docking_Score', software='vina', pyscreener_path='/global/home/users/adchen/pyscreener', pdbids=['6W01'], center=(-56.78, 51.076, 27.815), size=(30, 30, 26), buffer=10, path='./my_test/', num_worker=1, ncpu=4)
+        #oracle=Oracle(name='Docking_Score', software='vina', pyscreener_path='/global/home/users/adchen/pyscreener', receptors=['/global/home/users/adchen/NSP15_6W01_A_1_F.receptor.pdb'], docked_ligand_file='/global/home/users/adchen/NSP15_6W01_A_1_F.oeb.docked_poses.pdb', buffer=10, path='./my_test/', num_worker=1, ncpu=4)
+        surrogate_model_1 = load_surrogate_model(args.artifact_path,
+                                                args.surrogate_model_1_url,
+                                                args.surrogate_model_1_path,
+                                                device)
+        surrogate_model_2 = load_surrogate_model(args.artifact_path,
+                                                args.surrogate_model_2_url,
+                                                args.surrogate_model_2_path,
+                                                device)
         #print(surrogate_model)
-        #surrogate_model = surrogate_model.to(device)
+        surrogate_model_1 = surrogate_model_1.to(device)
+        surrogate_model_2 = surrogate_model_2.to(device)
 
     # logging variables
     best_running_reward = 0
@@ -397,8 +404,14 @@ def train_ppo(args, env):
                 if done:
                     if args.use_surrogate and (i_episode > args.surrogate_reward_timestep_delay):
                         try:
-                            #surr_reward = get_final_reward(state, env, surrogate_model, device)
-                            reward = get_dock_reward(state, oracle)
+                            surr_reward_1 = get_final_reward(state, env, surrogate_model_1, device)
+                            surr_reward_2 = get_final_reward(state, env, surrogate_model_2, device)
+                            abs_diff = abs(surr_reward_1 - surr_reward_2)
+                            if abs_diff > 2 and ((surr_reward_1 > 13) or (surr_reward_2 > 13)):
+                                print("Uncertain! Difference between two surrogates is {}. Using oracle.".format(abs_diff))
+                                reward = get_dock_reward(state, oracle)
+                            else:
+                                reward = (surr_reward_1 + surr_reward_2)/2
                             info['surrogate_reward'] = reward
                         except Exception as e:
                             print("Error in surrogate " + str(e))

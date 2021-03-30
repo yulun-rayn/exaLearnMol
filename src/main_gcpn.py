@@ -27,8 +27,10 @@ def molecule_arg_parser():
     # SURROGATE REWARD
     add_arg('--use_surrogate', '-sur', action='store_true')
     add_arg('--surrogate_reward_timestep_delay', type=int, default=0)
-    add_arg('--surrogate_model_url', default='')
-    add_arg('--surrogate_model_path', default='')
+    add_arg('--surrogate_model_1_url', default='')
+    add_arg('--surrogate_model_1_path', default='')
+    add_arg('--surrogate_model_2_url', default='')
+    add_arg('--surrogate_model_2_path', default='')
 
     # ENVIRONMENT PARAMETERS
     add_arg('--dataset', type=str, default='zinc', help='caveman; grid; ba; zinc; gdb')
