@@ -39,9 +39,9 @@ def get_batch_shift(pyg_batch):
 
     # shift batch
     zero = torch.LongTensor([0]).to(batch_num_nodes.device)
-    batch_num_nodes = torch.cat((zero, batch_num_nodes[:-1]))
+    batch_shift = torch.cat((zero, torch.cumsum(batch_num_nodes[:-1], 0)))
 
-    return batch_num_nodes
+    return batch_shift
 
 #####################################################
 #                       CREM                        #
