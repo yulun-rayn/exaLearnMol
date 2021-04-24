@@ -190,7 +190,7 @@ class PPO_GCPN(nn.Module):
         else:
             return [g_emb, X_states], action_logprobs, actions
 
-    def update(self, memory, save_dir):
+    def update(self, memory):
         # Monte Carlo estimate of rewards:
         rewards = []
         discounted_reward = 0
@@ -243,8 +243,6 @@ class PPO_GCPN(nn.Module):
             if (i%10)==0:
                 print("  {:3d}: Loss: {:7.3f}".format(i, loss))
 
-        # save running model
-        torch.save(self.policy.state_dict(), os.path.join(save_dir, 'running_gcpn.pth'))
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
@@ -298,7 +296,7 @@ class Worker(mp.Process):
             next_task = self.task_queue.get()
             if next_task == None:
                 # Poison pill means shutdown
-                print('%s: Exiting' % proc_name)
+                print('\n%s: Exiting' % proc_name)
                 self.task_queue.task_done()
                 break
 
@@ -513,7 +511,7 @@ def train_ppo(args, surrogate_model, env):
             m.clear()
         # update model
         print("\n\nupdating ppo @ episode %d..." % i_episode)
-        ppo.update(memory, save_dir)
+        ppo.update(memory)
         memory.clear()
 
         update_count += 1
@@ -523,13 +521,16 @@ def train_ppo(args, surrogate_model, env):
         # stop training if avg_reward > solved_reward
         if np.mean(rewbuffer_env) > solved_reward:
             print("########## Solved! ##########")
-            torch.save(ppo.policy.state_dict(), os.path.join(save_dir, 'PPO_continuous_solved_{}.pth'.format('test')))
+            torch.save(ppo.policy.actor, os.path.join(save_dir, 'PPO_continuous_solved_{}.pth'.format('test')))
             break
 
         # save every 500 episodes
         if save_counter > save_interval:
-            torch.save(ppo.policy.state_dict(), os.path.join(save_dir, '{:05d}_gcpn.pth'.format(i_episode)))
+            torch.save(ppo.policy.actor, os.path.join(save_dir, '{:05d}_gcpn.pth'.format(i_episode)))
             save_counter -= save_interval
+        
+        # save running model
+        torch.save(ppo.policy.actor, os.path.join(save_dir, 'running_gcpn.pth'))
 
         if log_counter > log_interval:
             avg_length = int(avg_length/log_counter)
