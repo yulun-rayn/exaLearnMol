@@ -12,6 +12,7 @@ from torch_geometric.data import Batch
 from utils.graph_utils import mol_to_pyg_graph
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+#DEVICE = 'cpu'
 
 def get_rewards(g_batch, surrogate_model):
     with torch.autograd.no_grad():
@@ -29,7 +30,7 @@ def gcpn_crem_rollout(save_path,
     mol_start = mol
     mol_best = mol
 
-    g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]])
+    g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]]).to(DEVICE)
     new_rew = get_rewards(g, surrogate_guide)
     start_rew = new_rew
     best_rew = new_rew
@@ -38,11 +39,11 @@ def gcpn_crem_rollout(save_path,
     for i in range(max_rollout):
         print("  {:3d} {:2d} {:4.1f}".format(i+1, steps_remaining, best_rew))
         steps_remaining -= 1
-        g_candidates = Batch().from_data_list([mol_to_pyg_graph(cand)[0] for cand in mol_candidates])
+        g_candidates = Batch().from_data_list([mol_to_pyg_graph(cand)[0] for cand in mol_candidates]).to(DEVICE)
         next_rewards = get_rewards(g_candidates, surrogate_guide)
 
         with torch.autograd.no_grad():
-            _, _, _, probs, _, _, _ = policy(g, g_candidates, torch.empty(len(mol_candidates), dtype=torch.long).fill_(0))
+            _, _, _, probs, _, _, _ = policy(g, g_candidates, torch.empty(len(mol_candidates), dtype=torch.long).fill_(0).to(DEVICE))
         max_action = np.argmax(probs.cpu().numpy())
         min_action = np.argmin(probs.cpu().numpy())
 
@@ -64,7 +65,7 @@ def gcpn_crem_rollout(save_path,
             break
 
         mol, mol_candidates, done = env.step(action, include_current_state=False)
-        g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]])
+        g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]]).to(DEVICE)
 
         if new_rew > best_rew:
             mol_best = mol
