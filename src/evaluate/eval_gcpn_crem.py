@@ -71,7 +71,7 @@ def gcpn_crem_rollout(save_path,
             print(e)
             break
 
-        mol, mol_candidates, done = env.step(action, include_current_state=False)
+        mol, mol_candidates, done = env.step(action)
         g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]]).to(DEVICE)
 
         if new_rew > best_rew:
