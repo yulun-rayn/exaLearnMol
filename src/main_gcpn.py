@@ -23,7 +23,7 @@ def molecule_arg_parser():
     add_arg('--name', default='default_run')
     add_arg('--use_cpu', action='store_true')
     add_arg('--gpu', default='0')
-    add_arg('--nb_procs', type=int, default=4)
+    add_arg('--nb_procs', type=int, default=16)
     #add_arg('--seed', help='RNG seed', type=int, default=666)
 
     add_arg('--warm_start_dataset_path', default='')
@@ -43,7 +43,7 @@ def molecule_arg_parser():
     #add_arg('--sa_ratio', type=float, default=1)
     #add_arg('--reward_step_total', type=float, default=0.5)
     #add_arg('--normalize_adj', type=int, default=0)
-    #add_arg('--reward_type', type=str, default='qed', help='logppen;logp_target;qed;qedsa;qed_target;mw_target;gan')
+    add_arg('--reward_type', type=str, default='surr', help='logp;surr')
     #add_arg('--reward_target', type=float, default=0.5, help='target reward value')
     #add_arg('--has_feature', type=int, default=0)
     #add_arg('--is_conditional', type=int, default=0) # default 0

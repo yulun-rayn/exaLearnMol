@@ -70,5 +70,6 @@ class CReM_Env(object):
             mol_candidates = [mol_to_pyg_graph(i)[0] for i in mol_candidates]
 
         if len(mol_candidates)==0:
+            a=1
             return None, True
         return mol_candidates, False

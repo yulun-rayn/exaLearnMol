@@ -7,6 +7,8 @@ import yaml
 import numpy as np
 from collections import deque, OrderedDict
 
+from rdkit.Chem.Descriptors import MolLogP
+
 import time
 from datetime import datetime
 
@@ -200,6 +202,11 @@ class DGCPN(nn.Module):
 #####################################################
 #                      REWARDS                      #
 #####################################################
+def get_logp_scores(states):
+    if not isinstance(states, list):
+        states = [states]
+    scores = [MolLogP(state) for state in states]
+    return scores
 
 def get_surr_reward(states, surrogate_model, device):
     if not isinstance(states, list):
@@ -360,6 +367,10 @@ def train_ppo(args, surrogate_model, env):
                 args.rnd_num_layers,
                 args.rnd_num_hidden)
     ppo.to_device(device)
+    #Load policy 
+    #ppo.policy.actor = torch.load("/global/home/users/adchen/exaLearnMol/artifact/gcpn/saves/crem_parallel_GPU_8_default_surr_2021.04.29_16:16:15/running_gcpn.pth", map_location=device)
+    
+    #ppo.policy_old.actor = torch.load("/global/home/users/adchen/exaLearnMol/artifact/gcpn/saves/crem_parallel_GPU_8_default_surr_2021.04.29_16:16:15/running_gcpn.pth", map_location=device)
     print(ppo)
 
     sample_count = 0
@@ -437,9 +448,12 @@ def train_ppo(args, surrogate_model, env):
             nowdone_idx = [idx for idx in notdone_idx if idx in new_done_idx]
             stillnotdone_idx = [idx for idx in notdone_idx if idx in new_notdone_idx]
             if len(nowdone_idx) > 0:
-                surr_rewards = get_surr_reward(
-                    [mols[idx] for idx in nowdone_idx],
-                    surrogate_model, device)
+                if args.reward_type == "surr":
+                    surr_rewards = get_surr_reward(
+                        [mols[idx] for idx in nowdone_idx],
+                        surrogate_model, device)
+                elif args.reward_type == "logp":
+                    surr_rewards = get_logp_scores([mols[idx] for idx in nowdone_idx])
 
             for i, idx in enumerate(nowdone_idx):
                 try:

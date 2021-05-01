@@ -164,8 +164,8 @@ class GCPN_Actor(nn.Module):
     def forward(self, g, g_candidates, batch_idx):
         g_emb = self.get_embedding(g)
         g_candidates_emb = self.get_embedding(g_candidates)
-
-        X = torch.repeat_interleave(g_emb, torch.bincount(batch_idx), dim=0)
+        batch_expand = torch.bincount(batch_idx)
+        X = torch.repeat_interleave(g_emb, batch_expand[batch_expand != 0], dim=0)
         X = torch.cat((X, g_candidates_emb), dim=1)
         X_states = X
 
