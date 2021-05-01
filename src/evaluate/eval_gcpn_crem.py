@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 
 from rdkit import Chem
+from rdkit.Chem.Descriptors import MolLogP
 
 import torch
 from torch_geometric.data import Batch
@@ -13,6 +14,12 @@ from utils.graph_utils import mol_to_pyg_graph
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 #DEVICE = 'cpu'
+
+def get_logp_scores(states):
+    if not isinstance(states, list):
+        states = [states]
+    scores = [MolLogP(state) for state in states]
+    return np.array(scores)
 
 def get_rewards(g_batch, surrogate_model):
     with torch.autograd.no_grad():
@@ -88,7 +95,7 @@ def gcpn_crem_rollout(save_path,
 def eval_gcpn_crem(artifact_path, policy, surrogate_guide, surrogate_eval, env, N=120, K=1):
     # logging variables
     dt = datetime.now().strftime("%Y.%m.%d_%H:%M:%S")
-    save_path = os.path.join(artifact_path, dt + '.csv')
+    save_path = os.path.join(artifact_path, dt + '_crem.csv')
 
     surrogate_guide = surrogate_guide.to(DEVICE)
     surrogate_guide.eval()
