@@ -288,11 +288,11 @@ def get_reward(states, surrogate_model, device, done_idx=None):
     pred_docking_score=[]
     with open(adttmp+"/adt_affinity_vals","r") as scores:
         for mol in scores.readlines():
-            pred_docking_score.append(float(mol.strip()))
+            pred_docking_score.append(-float(mol.strip()))
     #print("\npred_docking_score:\n{}".format(pred_docking_score))
 
     shutil.rmtree(adttmp)
-    print("Dock Scores: {}".format(pred_docking_score))
+    print("Reward Scores (-dock): {}".format(pred_docking_score))
     return (pred_docking_score)
 
 
