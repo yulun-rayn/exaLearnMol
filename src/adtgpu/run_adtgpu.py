@@ -13,6 +13,10 @@ if __name__ == '__main__':
         help='List of smiles strings.\nIn single quotes and seperated by commas')
     parser.add_argument('-d','--rundir', dest='run_dir',
         help='Run directory')
+    parser.add_argument('-o','--obabel', dest='obabel_path', help='Open Babel directory', 
+        default='/gpfs/alpine/syb105/proj-shared/Personal/manesh/BIN/openbabel/summit/build/bin/obabel')
+    parser.add_argument('-a','--adt', dest='adt_path', help='AutoDockGPU directory', 
+        default='/gpfs/alpine/syb105/proj-shared/Personal/gabrielgaz/Apps/summit/autoDockGPU2/bin/autodock_gpu_64wi')
     args = parser.parse_args()
 
     #Debug mode
@@ -32,8 +36,8 @@ if __name__ == '__main__':
     if(DEBUG): print("Inside adt script")
 
     #Executable paths
-    obabel="/gpfs/alpine/syb105/proj-shared/Personal/manesh/BIN/openbabel/summit/build/bin/obabel"
-    adt="/gpfs/alpine/syb105/proj-shared/Personal/gabrielgaz/Apps/summit/autoDockGPU2/bin/autodock_gpu_64wi"
+    obabel=args.obabel_path
+    adt=args.adt_path
 
     #Parse smiles input into array
     smiles=re.sub('\ |\'', '', args.smiles[1:-1]).split(",")

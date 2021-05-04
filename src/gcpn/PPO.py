@@ -425,6 +425,10 @@ def train_ppo(args, surrogate_model, env):
                     [mol_to_pyg_graph(mols[idx])[0] for idx in notdone_idx], 
                     [mol_to_pyg_graph(cand)[0] for cand in candidates], 
                     surrogate_model, batch_idx, return_shifted=True)
+                if not isinstance(action_logprobs, list):
+                    action_logprobs = [action_logprobs]
+                    actions = [actions]
+                    shifted_actions = [shifted_actions]
             else:
                 if sample_count >= update_timesteps:
                     break
@@ -462,12 +466,11 @@ def train_ppo(args, surrogate_model, env):
             stillnotdone_idx = [idx for idx in notdone_idx if idx in new_notdone_idx]
             if len(nowdone_idx) > 0:
                 surr_rewards = get_reward([mols[idx] for idx in nowdone_idx])
+                if not isinstance(surr_rewards, list):
+                    surr_rewards = [surr_rewards]
 
             for i, idx in enumerate(nowdone_idx):
-                try:
-                    surr_reward = surr_rewards[i]
-                except Exception as e:
-                    surr_reward = surr_rewards
+                surr_reward = surr_rewards[i]
 
                 i_episode += 1
                 running_reward += surr_reward
