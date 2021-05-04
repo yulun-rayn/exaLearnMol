@@ -281,7 +281,7 @@ def get_reward(states, surrogate_model, device, done_idx=None):
 
     #Run ADT-gpu
     #cmd="python /gpfs/alpine/syb105/proj-shared/Personal/mcashman/Projects/GCPN_MLDrugDiscovery/exaLearnMol_crem_parallel_GPU/scripts/run_adtgpu.py -r /gpfs/alpine/syb105/proj-shared/Projects/StructPred/Software/progs/adtgpu_sa/gcpn/scripts/test_run.Ver4/receptor/NSP15_6W01_A_1_F_receptor.pdb -s \"" + str(smiles) + "\" -d autodockgpu"    
-    cmd="python ./src/adtgpu/run_adtgpu.py -r ./src/adtgpu/receptor/NSP15_6W01_A_1_F_receptor.pdb -s \"" + str(smiles) + "\" -d "+adttmp    
+    cmd="python ./src/adtgpu/run_adtgpu.py -r ./src/adtgpu/receptor/NSP15_6W01_A_1_F_receptor.pdbqt -s \"" + str(smiles) + "\" -d "+adttmp    
     subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
 
     #Fetch output scores

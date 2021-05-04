@@ -5,14 +5,14 @@
 # Created by autogrid4.
 #
 #SPACING 1.000
-#NELEMENTS 30 30 26
-#CENTER -56.790 51.076 27.815
+#NELEMENTS 26 26 26
+#CENTER -63.524 71.834 30.930
 #MACROMOLECULE NSP15_6W01_A_1_F_receptor.pdbqt
 #GRID_PARAMETER_FILE nsp15.gpf
 #
 ndim=3			# number of dimensions in the field
-dim1=31			# number of x-elements
-dim2=31			# number of y-elements
+dim1=27			# number of x-elements
+dim2=27			# number of y-elements
 dim3=27			# number of z-elements
 nspace=3		# number of physical coordinates per point
 veclen=16		# number of affinity values at each point

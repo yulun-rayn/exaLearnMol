@@ -65,7 +65,7 @@ if __name__ == '__main__':
     
     #Get stub name of receptor and field file
     receptor_dir='/'.join(args.receptor_file.split('/')[:-1])
-    receptor_stub=args.receptor_file.split('/')[-1][:-4] #rm .pdb=4
+    receptor_stub=args.receptor_file.split('/')[-1][:-6] #rm .pdbqt=6
     if(DEBUG): print("\nReceptor dir:  {}".format(receptor_dir))
     if(DEBUG): print("Receptor stub: {}".format(receptor_stub))
     receptor_field=receptor_stub+".maps.fld"
