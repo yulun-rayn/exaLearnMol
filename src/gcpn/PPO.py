@@ -194,7 +194,7 @@ class PPO_GCPN(nn.Module):
         else:
             return [g_emb, X_states], action_logprobs, actions
 
-    def update(self, memory, save_dir):
+    def update(self, memory):
         # Monte Carlo estimate of rewards:
         rewards = []
         discounted_reward = 0
@@ -247,8 +247,6 @@ class PPO_GCPN(nn.Module):
             if (i%10)==0:
                 print("  {:3d}: Loss: {:7.3f}".format(i, loss))
 
-        # save running model
-        torch.save(self.policy.state_dict(), os.path.join(save_dir, 'running_gcpn.pth'))
         # Copy new weights into old policy:
         self.policy_old.load_state_dict(self.policy.state_dict())
 
@@ -319,15 +317,13 @@ class Worker(mp.Process):
         self.max_timesteps = max_timesteps
         self.timestep_counter = 0
 
-        np.random.seed(self.pid)
-
     def run(self):
         proc_name = self.name
         while True:
             next_task = self.task_queue.get()
             if next_task == None:
                 # Poison pill means shutdown
-                print('%s: Exiting' % proc_name)
+                print('\n%s: Exiting' % proc_name)
                 self.task_queue.task_done()
                 break
 
@@ -511,24 +507,29 @@ def train_ppo(args, surrogate_model, env):
                     surrogate_model, device)
 
             for i, idx in enumerate(nowdone_idx):
+                try:
+                    surr_reward = surr_rewards[i]
+                except Exception as e:
+                    surr_reward = surr_rewards
+
                 i_episode += 1
-                episode_count += 1
-                avg_length += 1
-                running_reward += surr_rewards[i]
-                writer.add_scalar("EpSurrogate", -1*surr_rewards[i], i_episode-1)
-                rewbuffer_env.append(surr_rewards[i])
+                running_reward += surr_reward
+                writer.add_scalar("EpSurrogate", -1*surr_reward, i_episode-1)
+                rewbuffer_env.append(surr_reward)
                 writer.add_scalar("EpRewEnvMean", np.mean(rewbuffer_env), i_episode-1)
 
-                memories[idx].rewards.append(surr_rewards[i])
+                memories[idx].rewards.append(surr_reward)
                 memories[idx].is_terminals.append(True)
             for idx in stillnotdone_idx:
-                avg_length += 1
                 running_reward += 0
 
                 memories[idx].rewards.append(0)
                 memories[idx].is_terminals.append(False)
 
             sample_count += len(notdone_idx)
+            avg_length += len(notdone_idx)
+            episode_count += len(nowdone_idx)
+
             done_idx = new_done_idx
             notdone_idx = new_notdone_idx
 
@@ -537,7 +538,7 @@ def train_ppo(args, surrogate_model, env):
             m.clear()
         # update model
         print("\n\nupdating ppo @ episode %d..." % i_episode)
-        ppo.update(memory, save_dir)
+        ppo.update(memory)
         memory.clear()
 
         update_count += 1
@@ -547,15 +548,18 @@ def train_ppo(args, surrogate_model, env):
         # stop training if avg_reward > solved_reward
         if np.mean(rewbuffer_env) > solved_reward:
             print("########## Solved! ##########")
-            torch.save(ppo.policy.state_dict(), os.path.join(save_dir, 'PPO_continuous_solved_{}.pth'.format('test')))
+            torch.save(ppo.policy.actor, os.path.join(save_dir, 'PPO_continuous_solved_{}.pth'.format('test')))
             break
 
         # save every 500 episodes
-        if save_counter > save_interval:
-            torch.save(ppo.policy.state_dict(), os.path.join(save_dir, '{:05d}_gcpn.pth'.format(i_episode)))
+        if save_counter >= save_interval:
+            torch.save(ppo.policy.actor, os.path.join(save_dir, '{:05d}_gcpn.pth'.format(i_episode)))
             save_counter -= save_interval
+        
+        # save running model
+        torch.save(ppo.policy.actor, os.path.join(save_dir, 'running_gcpn.pth'))
 
-        if log_counter > log_interval:
+        if log_counter >= log_interval:
             avg_length = int(avg_length/log_counter)
             running_reward = running_reward/log_counter
             
