@@ -14,11 +14,8 @@ from utils.graph_utils import mol_to_pyg_graph
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def get_logp_rewards(states):
-    if not isinstance(states, list):
-        states = [states]
-    scores = [MolLogP(state) for state in states]
-    return np.array(scores)
+from logp.get_reward import get_logp_scores
+
 
 def get_rewards(g_batch, surrogate_model):
     with torch.autograd.no_grad():
@@ -103,5 +100,5 @@ def eval_greedy(artifact_path, reward_type, surrogate_guide, surrogate_eval, env
         avg_best.append(best_rew)
     avg_improvement = sum(avg_improvement) / len(avg_improvement)
     avg_best = sum(avg_best) / len(avg_best)
-    print("Avg improvement over {} samples: {:5.2f}".format(N, avg_improvement))
-    print("Avg best        over {} samples: {:5.2f}".format(N, avg_best))
+    print(f"Avg improvement over {N} samples: {avg_improvement}")
+    print(f"Avg best        over {N} samples: {avg_best}")

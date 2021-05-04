@@ -12,14 +12,11 @@ from torch_geometric.data import Batch
 
 from utils.graph_utils import mol_to_pyg_graph
 
+from logp.get_reward import get_logp_scores
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 #DEVICE = 'cpu'
 
-def get_logp_scores(states):
-    if not isinstance(states, list):
-        states = [states]
-    scores = [MolLogP(state) for state in states]
-    return np.array(scores)
 
 def get_rewards(g_batch, surrogate_model):
     with torch.autograd.no_grad():

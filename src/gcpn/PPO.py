@@ -7,8 +7,6 @@ import yaml
 import numpy as np
 from collections import deque, OrderedDict
 
-from rdkit.Chem.Descriptors import MolLogP
-
 import time
 from datetime import datetime
 
@@ -28,6 +26,8 @@ from utils.general_utils import initialize_logger
 from utils.graph_utils import mol_to_pyg_graph, get_batch_shift
 
 from gnn_surrogate.model import GNN_MyGAT
+
+from logp.get_reward import get_logp_scores
 
 #####################################################
 #                   HELPER MODULES                  #
@@ -202,11 +202,6 @@ class DGCPN(nn.Module):
 #####################################################
 #                      REWARDS                      #
 #####################################################
-def get_logp_scores(states):
-    if not isinstance(states, list):
-        states = [states]
-    scores = [MolLogP(state) for state in states]
-    return scores
 
 def get_surr_reward(states, surrogate_model, device):
     if not isinstance(states, list):
