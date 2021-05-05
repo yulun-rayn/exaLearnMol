@@ -20,7 +20,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     #Debug mode
-    DEBUG=False
+    DEBUG=True
 
     #Check that input file path exist
     if not os.path.exists(args.receptor_file):
@@ -40,6 +40,7 @@ if __name__ == '__main__':
     adt=args.adt_path
 
     #Parse smiles input into array
+    if(DEBUG): print("Original smiles:\n{}".format(args.smiles))
     smiles=re.sub('\ |\'', '', args.smiles[1:-1]).split(",")
     if(DEBUG): print("List of smiles:\n{}".format('\n'.join(smiles)))
 
@@ -57,12 +58,14 @@ if __name__ == '__main__':
 
         #Create run command and execute
         cmd=obabel+" --gen3d --partialcharge gasteiger --addfilename -ismi "
-        cmd+=tmp_file+" -opdbqt > "+ligand_out
+        cmd+=tmp_file+" -opdbqt -O "+ligand_out
         if(DEBUG): print("\nCmd to run:\n{}".format(cmd))
-        subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
-
+        if (DEBUG): subprocess.Popen(cmd,shell=True).wait()
+        else: subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
+        if(DEBUG): print("Done!")
+    
         #Clean up and increment smile counter
-        os.remove(tmp_file)
+        #os.remove(tmp_file)
         ligand_store_file=ligand_out.split('/')[-1][:-6]
         ligs_list.append(ligand_store_file)
         sm_counter+=1
@@ -83,10 +86,12 @@ if __name__ == '__main__':
             f.write("ligands/"+lig+".pdbqt\n")
             f.write("ligands/"+lig+'\n')
 
+    DEBUG=False #Mika delete
     #Copy map files to run dir
     cmd="cp "+receptor_dir+"/"+receptor_stub+"* "+args.run_dir
     if(DEBUG): print("\nCopy cmd to run: {}".format(cmd))
-    subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
+    if(DEBUG): subprocess.Popen(cmd,shell=True).wait()
+    else: subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
 
     #Set up autodock-gpu run command
     cmd="/gpfs/alpine/syb105/proj-shared/Personal/gabrielgaz/Apps/summit/autoDockGPU2/bin/autodock_gpu_64wi -filelist "+run_file_lbl+" -nrun 10"
@@ -95,7 +100,8 @@ if __name__ == '__main__':
     #Run autodock-gpu (in run_dir and move back)
     cur_dir=os.getcwd()
     os.chdir(args.run_dir)
-    subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
+    if(DEBUG): subprocess.Popen(cmd,shell=True).wait()
+    else: subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
     os.chdir(cur_dir)
 
     #Create output file for final scores
