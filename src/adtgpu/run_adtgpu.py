@@ -3,6 +3,8 @@ import re
 import sys
 import argparse
 import subprocess
+from rdkit import Chem
+from rdkit.Chem import AllChem
 
 if __name__ == '__main__':
     #Parse args
@@ -20,7 +22,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     #Debug mode
-    DEBUG=True
+    DEBUG=False
 
     #Check that input file path exist
     if not os.path.exists(args.receptor_file):
@@ -48,24 +50,32 @@ if __name__ == '__main__':
     ligs_list=[]
     sm_counter=1
     for smile in smiles:
+        #Prepare SMILES for conversion, convert to pdb
+        my_mol = Chem.MolFromSmiles(smile)
+        my_mol_with_H=Chem.AddHs(my_mol)
+        AllChem.EmbedMolecule(my_mol_with_H)
+        AllChem.MMFFOptimizeMolecule(my_mol_with_H)
+        my_embedded_mol = Chem.RemoveHs(my_mol_with_H)
+        #print("Printing MolToPDBBlock:\n".format(Chem.MolToPDBBlock(my_embedded_mol))
+ 
         #Create temp directory needed for obabel
-        tmp_file=args.run_dir+ligands_dir+"/ligand"+str(sm_counter)+".smile"
+        tmp_file=args.run_dir+ligands_dir+"/ligand"+str(sm_counter)+".pdb"
         with open(tmp_file,'w') as f:
-            f.write(smile+'\n')
+            f.write(Chem.MolToPDBBlock(my_embedded_mol))
         
         #Create name for output pdbqt file
         ligand_out=args.run_dir+ligands_dir+"/ligand"+str(sm_counter)+".pdbqt"
 
-        #Create run command and execute
-        cmd=obabel+" --gen3d --partialcharge gasteiger --addfilename -ismi "
+        #Convert pdb to pdbqt
+        cmd=obabel+" --partialcharge gasteiger --addfilename -ipdb "
         cmd+=tmp_file+" -opdbqt -O "+ligand_out
         if(DEBUG): print("\nCmd to run:\n{}".format(cmd))
-        if (DEBUG): subprocess.Popen(cmd,shell=True).wait()
+        if(DEBUG): subprocess.Popen(cmd,shell=True).wait()
         else: subprocess.Popen(cmd,shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).wait()
         if(DEBUG): print("Done!")
     
         #Clean up and increment smile counter
-        #os.remove(tmp_file)
+        os.remove(tmp_file)
         ligand_store_file=ligand_out.split('/')[-1][:-6]
         ligs_list.append(ligand_store_file)
         sm_counter+=1
@@ -86,7 +96,6 @@ if __name__ == '__main__':
             f.write("ligands/"+lig+".pdbqt\n")
             f.write("ligands/"+lig+'\n')
 
-    DEBUG=False #Mika delete
     #Copy map files to run dir
     cmd="cp "+receptor_dir+"/"+receptor_stub+"* "+args.run_dir
     if(DEBUG): print("\nCopy cmd to run: {}".format(cmd))
