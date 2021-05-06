@@ -23,7 +23,7 @@ def molecule_arg_parser():
     add_arg('--data_path', required=True)
     add_arg('--warm_start_dataset_path', required=True)
     add_arg('--artifact_path', required=True)
-    add_arg('--reward_type', default='surr', help='logp;surr')
+    add_arg('--reward_type', default='dock', help='logp;dock')
     add_arg('--name', default='default_run')
     add_arg('--greedy', action='store_true')
 

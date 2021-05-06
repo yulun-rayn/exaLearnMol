@@ -14,24 +14,14 @@ from utils.graph_utils import mol_to_pyg_graph
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-from logp.get_reward import get_logp_scores
-
-
-def get_rewards(g_batch, surrogate_model):
-    with torch.autograd.no_grad():
-        scores = surrogate_model(g_batch.to(DEVICE))
-    return scores.cpu().numpy()*-1
+from reward.get_main_reward import get_main_reward
 
 def greedy_rollout(save_path, env, reward_type, surrogate_guide, surrogate_eval, K, max_rollout=6):
     mol, mol_candidates, done = env.reset()
     mol_start = mol
     mol_best = mol
 
-    if reward_type == 'surr':
-        g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]]).to(DEVICE)
-        new_rew = get_rewards(g, surrogate_guide)
-    elif reward_type == 'logp':
-        new_rew = get_logp_rewards(mol)
+    new_rew = get_main_reward(mol, reward_type)
 
     start_rew = new_rew
     best_rew = new_rew
@@ -41,11 +31,7 @@ def greedy_rollout(save_path, env, reward_type, surrogate_guide, surrogate_eval,
         print(f"  {i+1} {steps_remaining} {new_rew}")
         steps_remaining -= 1
         
-        if reward_type == 'surr':
-            g_candidates = Batch().from_data_list([mol_to_pyg_graph(cand)[0] for cand in mol_candidates]).to(DEVICE)
-            next_rewards = get_rewards(g_candidates, surrogate_guide)
-        elif reward_type == 'logp':
-            next_rewards = get_logp_rewards(mol_candidates)
+        next_rewards = get_main_reward(mol_candidates, reward_type)
         
         action = np.argmax(next_rewards)
 
@@ -56,9 +42,6 @@ def greedy_rollout(save_path, env, reward_type, surrogate_guide, surrogate_eval,
             break
         
         mol, mol_candidates, done = env.step(action)
-        
-        if reward_type == 'surr':
-            g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]]).to(DEVICE)
 
         if new_rew > best_rew:
             mol_best = mol

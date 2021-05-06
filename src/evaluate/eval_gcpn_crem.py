@@ -12,19 +12,15 @@ from torch_geometric.data import Batch
 
 from utils.graph_utils import mol_to_pyg_graph
 
-from logp.get_reward import get_logp_scores
+from reward.get_main_reward import get_main_reward
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 #DEVICE = 'cpu'
 
 
-def get_rewards(g_batch, surrogate_model):
-    with torch.autograd.no_grad():
-        scores = surrogate_model(g_batch.to(DEVICE))
-    return scores.cpu().numpy()*-1
-
 def gcpn_crem_rollout(save_path,
                       policy,
+                      reward_type,
                       env,
                       surrogate_guide,
                       surrogate_eval,
@@ -35,7 +31,7 @@ def gcpn_crem_rollout(save_path,
     mol_best = mol
 
     g = Batch().from_data_list([mol_to_pyg_graph(mol)[0]]).to(DEVICE)
-    new_rew = get_rewards(g, surrogate_guide)
+    new_rew = get_main_reward(mol, reward_type)
     start_rew = new_rew
     best_rew = new_rew
     steps_remaining = K
@@ -44,7 +40,7 @@ def gcpn_crem_rollout(save_path,
         print("  {:3d} {:2d} {:4.1f}".format(i+1, steps_remaining, best_rew))
         steps_remaining -= 1
         g_candidates = Batch().from_data_list([mol_to_pyg_graph(cand)[0] for cand in mol_candidates]).to(DEVICE)
-        next_rewards = get_rewards(g_candidates, surrogate_guide)
+        next_rewards = get_main_reward(mol_candidates, reward_type)
 
         with torch.autograd.no_grad():
             _, _, _, probs, _, _, _ = policy(g, g_candidates, torch.empty(len(mol_candidates), dtype=torch.long).fill_(0).to(DEVICE))
@@ -89,7 +85,7 @@ def gcpn_crem_rollout(save_path,
 
     return start_rew, best_rew
 
-def eval_gcpn_crem(artifact_path, policy, surrogate_guide, surrogate_eval, env, N=120, K=1):
+def eval_gcpn_crem(artifact_path, policy, reward_type, surrogate_guide, surrogate_eval, env, N=120, K=1):
     # logging variables
     dt = datetime.now().strftime("%Y.%m.%d_%H:%M:%S")
     save_path = os.path.join(artifact_path, dt + '_crem.csv')
@@ -108,6 +104,7 @@ def eval_gcpn_crem(artifact_path, policy, surrogate_guide, surrogate_eval, env, 
     for i in range(N):
         start_rew, best_rew = gcpn_crem_rollout(save_path,
                                                 policy,
+                                                reward_type, 
                                                 env,
                                                 surrogate_guide,
                                                 surrogate_eval,

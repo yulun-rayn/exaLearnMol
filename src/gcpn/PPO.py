@@ -27,7 +27,7 @@ from utils.graph_utils import mol_to_pyg_graph, get_batch_shift
 
 from gnn_surrogate.model import GNN_MyGAT
 
-from logp.get_reward import get_logp_scores
+from reward.get_main_reward import get_main_reward
 
 #####################################################
 #                   HELPER MODULES                  #
@@ -447,13 +447,8 @@ def train_ppo(args, surrogate_model, env):
             nowdone_idx = [idx for idx in notdone_idx if idx in new_done_idx]
             stillnotdone_idx = [idx for idx in notdone_idx if idx in new_notdone_idx]
             if len(nowdone_idx) > 0:
-                if args.reward_type == "surr":
-                    surr_rewards = get_surr_reward(
-                        [mols[idx] for idx in nowdone_idx],
-                        surrogate_model, device)
-                elif args.reward_type == "logp":
-                    surr_rewards = get_logp_scores([mols[idx] for idx in nowdone_idx])
-                
+                surr_rewards = get_main_reward([mols[idx] for idx in nowdone_idx], args.reward_type)
+
                 if not isinstance(surr_rewards, list):
                     surr_rewards = [surr_rewards]
 
