@@ -16,7 +16,7 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 from reward.get_main_reward import get_main_reward
 
-def greedy_rollout(save_path, env, reward_type, surrogate_guide, surrogate_eval, K, max_rollout=6):
+def greedy_rollout(save_path, env, reward_type, K, max_rollout=6):
     mol, mol_candidates, done = env.reset()
     mol_start = mol
     mol_best = mol
@@ -61,22 +61,17 @@ def greedy_rollout(save_path, env, reward_type, surrogate_guide, surrogate_eval,
 
     return start_rew, best_rew
 
-def eval_greedy(artifact_path, reward_type, surrogate_guide, surrogate_eval, env, N=30, K=1):
+def eval_greedy(artifact_path, reward_type, env, N=30, K=1):
     # logging variables
     dt = datetime.now().strftime("%Y.%m.%d_%H:%M:%S")
     save_path = os.path.join(artifact_path, dt + '_greedy.csv')
     
-    if reward_type == 'surr':
-        surrogate_guide = surrogate_guide.to(DEVICE)
-        surrogate_guide.eval()
-        surrogate_eval  = surrogate_eval.to(DEVICE)
-        surrogate_eval.eval()
 
     print("\nStarting greedy...\n")
     avg_improvement = []
     avg_best = []
     for i in range(N):
-        start_rew, best_rew = greedy_rollout(save_path, env, reward_type, surrogate_guide, surrogate_eval, K)
+        start_rew, best_rew = greedy_rollout(save_path, env, reward_type, K)
         improvement = best_rew - start_rew
         print(f"{i+1}: {start_rew} {best_rew} {improvement}\n")
         avg_improvement.append(improvement)

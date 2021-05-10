@@ -22,8 +22,6 @@ def gcpn_crem_rollout(save_path,
                       policy,
                       reward_type,
                       env,
-                      surrogate_guide,
-                      surrogate_eval,
                       K,
                       max_rollout=6):
     mol, mol_candidates, done = env.reset()
@@ -85,15 +83,10 @@ def gcpn_crem_rollout(save_path,
 
     return start_rew, best_rew
 
-def eval_gcpn_crem(artifact_path, policy, reward_type, surrogate_guide, surrogate_eval, env, N=120, K=1):
+def eval_gcpn_crem(artifact_path, policy, reward_type, env, N=120, K=1):
     # logging variables
     dt = datetime.now().strftime("%Y.%m.%d_%H:%M:%S")
     save_path = os.path.join(artifact_path, dt + '_crem.csv')
-
-    surrogate_guide = surrogate_guide.to(DEVICE)
-    surrogate_guide.eval()
-    surrogate_eval = surrogate_eval.to(DEVICE)
-    surrogate_eval.eval()
 
     policy = policy.to(DEVICE)
     policy.eval()
@@ -106,8 +99,6 @@ def eval_gcpn_crem(artifact_path, policy, reward_type, surrogate_guide, surrogat
                                                 policy,
                                                 reward_type, 
                                                 env,
-                                                surrogate_guide,
-                                                surrogate_eval,
                                                 K)
         improvement = best_rew - start_rew
         print("Improvement ", improvement)

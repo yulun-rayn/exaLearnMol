@@ -23,14 +23,12 @@ def molecule_arg_parser():
     add_arg('--data_path', required=True)
     add_arg('--warm_start_dataset_path', required=True)
     add_arg('--artifact_path', required=True)
-    add_arg('--reward_type', default='dock', help='logp;dock')
     add_arg('--name', default='default_run')
     add_arg('--greedy', action='store_true')
 
-    add_arg('--surrogate_model_url', default='')
-    add_arg('--surrogate_guide_path', default='')
-    add_arg('--surrogate_eval_path', default='')
-    add_arg('--gcpn_path', default='')
+    add_arg('--policy_path', default='')
+
+    add_arg('--reward_type', default='dock', help='plogp;logp;dock')
 
     add_arg('--nb_sample_crem', type=int, default=128)
 
@@ -38,17 +36,6 @@ def molecule_arg_parser():
     add_arg('--nb_bad_steps', type=int, default=5)
 
     return parser
-
-def load_surrogate_model(artifact_path, surrogate_model_url, surrogate_model_path):
-    if surrogate_model_url != '':
-        surrogate_model_path = os.path.join(artifact_path, 'surrogate_model.pth')
-
-        maybe_download_file(surrogate_model_path,
-                            surrogate_model_url,
-                            'Surrogate model')
-    surrogate_model = torch.load(surrogate_model_path, map_location='cpu')
-    print("Surrogate model loaded")
-    return surrogate_model
 
 def load_gcpn(gcpn_path):
     gcpn_model = torch.load(gcpn_path, map_location='cpu')
@@ -63,18 +50,7 @@ def main():
                 args.warm_start_dataset_path,
                 nb_sample_crem = args.nb_sample_crem,
                 mode='mol')
-    
-    if args.reward_type == 'surr':
-        surrogate_guide = load_surrogate_model(args.artifact_path,
-                                            args.surrogate_model_url,
-                                            args.surrogate_guide_path)
-        surrogate_eval  = load_surrogate_model(args.artifact_path,
-                                            '',
-                                            args.surrogate_eval_path)
-        print(surrogate_guide)
-    
-    elif args.reward_type == 'logp':
-        surrogate_guide, surrogate_eval = None, None
+
 
     artifact_path = os.path.join(args.artifact_path, args.name)
     os.makedirs(artifact_path, exist_ok=True)
@@ -83,20 +59,16 @@ def main():
         # Greedy
         eval_greedy(artifact_path,
                     args.reward_type,
-                    surrogate_guide,
-                    surrogate_eval,
                     env,
                     N = args.nb_test,
                     K = args.nb_bad_steps)
     else:
         # GCPN_CReM
-        policy = load_gcpn(args.gcpn_path)
+        policy = load_gcpn(args.policy_path)
         print(policy)
         eval_gcpn_crem(artifact_path,
                         policy,
                         args.reward_type,
-                        surrogate_guide,
-                        surrogate_eval,
                         env,
                         N = args.nb_test,
                         K = args.nb_bad_steps)
